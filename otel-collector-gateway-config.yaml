@@ -1,0 +1,33 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        include_metadata: true
+
+exporters:
+  debug:
+    verbosity: detailed
+  file:
+    path: /etc/otelcol-contrib/logs/gateway.log
+
+processors:
+  attributes/from_header:
+    actions:
+      - key: x-api-key
+        from_context: "x-api-key"
+        action: insert
+      - key: Langsmith-Project
+        from_context: "Langsmith-Project"
+        action: insert
+
+service:
+  #telemetry:
+  #  logs:
+  #    level: "info"
+  #    encoding: "console"
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [attributes/from_header]
+      exporters: [debug, file]

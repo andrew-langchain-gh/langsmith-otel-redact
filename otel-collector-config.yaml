@@ -1,0 +1,51 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+  resource/stamping:
+    attributes:
+      - key: collector.origin
+        value: "agent-alpha"
+        action: upsert
+  transform/mask_llm_output:
+      error_mode: ignore
+      trace_statements:
+        - context: span
+          statements:
+            # Match everything in the string and replace with REDACTED
+            - replace_pattern(attributes["gen_ai.completion"], ".*", "REDACTED")
+
+exporters:
+  debug:
+    verbosity: detailed 
+  otlp/gateway:
+    endpoint: "otel-gateway:4317"
+    tls:
+      insecure: true
+    headers:
+      x-api-key: "${env:LANGSMITH_API_KEY}"
+      Langsmith-Project: "langsmith-otel"
+  otlphttp/langsmith:
+    endpoint: "https://api.smith.langchain.com/otel"
+    headers:
+      x-api-key: "${env:LANGSMITH_API_KEY}"
+      Langsmith-Project: "langsmith-otel"
+  file:
+    path: /etc/otelcol-contrib/logs/agent.log
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch,resource/stamping,transform/mask_llm_output]
+      exporters: [debug,otlp/gateway,otlphttp/langsmith,file]
+  telemetry:
+    logs:
+      level: "info"
+      encoding: "console"
+
