@@ -1,6 +1,6 @@
 # langchain-otel-redact
 
-Demonstrates using LangChain with OpenTelemetry to send traces through a multi-collector pipeline that redacts LLM outputs before forwarding to LangSmith.
+Demonstrates using LangChain with OpenTelemetry to send traces through a collector that redacts LLM outputs before forwarding to LangSmith.
 
 ## Architecture
 
@@ -12,44 +12,32 @@ Demonstrates using LangChain with OpenTelemetry to send traces through a multi-c
          │ OTLP/HTTP :4318
          ▼
 ┌─────────────────────────────────────────────────┐
-│              OTel Agent Collector                │
+│              OTel Collector                      │
 │                                                 │
 │  Processors:                                    │
-│    batch → resource/stamping →                  │
-│    transform/mask_llm_output                    │
+│    batch → transform/mask_llm_output            │
 │    (replaces gen_ai.completion with REDACTED)   │
 │                                                 │
 │  Exporters:                                     │
-│  ┌───────────┬───────────────┐                  │
-│  │  *debug   │  *file        │                  │
-│  │           │  (agent.log)  │                  │
-│  └───────────┴───────────────┘                  │
-└──────────┬──────────────────────────┬───────────┘
-           │ OTLP/gRPC                │ OTLP/HTTP
-           ▼                          ▼
-┌─────────────────────┐    ┌────────────────────┐
-│  OTel Gateway       │    │  LangSmith         │
-│  Collector          │    │  (api.smith.lang-   │
-│                     │    │   chain.com/otel)   │
-│  Processors:        │    └────────────────────┘
-│   attributes/       │
-│   from_header       │
-│                     │
-│  Exporters:         │
-│   *debug, *file     │
-│   (gateway.log)     │
-└─────────────────────┘
+│  ┌───────────┬────────────────┬──────────────┐  │
+│  │  *debug   │  *file         │ otlphttp/    │  │
+│  │           │  (collector.   │ langsmith    │  │
+│  │           │   log)         │              │  │
+│  └───────────┴────────────────┴──────────────┘  │
+└─────────────────────────────────┬────────────────┘
+                                  │ OTLP/HTTP
+                                  ▼
+                       ┌────────────────────┐
+                       │  LangSmith         │
+                       │  (api.smith.lang-   │
+                       │   chain.com/otel)   │
+                       └────────────────────┘
 
 * debug and file exporters are included for local
   debugging only and would be removed in production.
 ```
 
-The project runs two OpenTelemetry collectors in a pipeline:
-
-1. **Agent collector** — Receives traces from the application, redacts `gen_ai.completion` span attributes, and forwards to both LangSmith and the gateway collector.
-2. **Gateway collector** — Receives forwarded traces from the agent, extracts metadata headers, and logs to file.
-
-The redaction is handled by the `transform/mask_llm_output` processor in the agent collector config, which replaces all LLM completion content with `REDACTED`.
+The project runs a single OpenTelemetry collector that receives traces from the application, redacts `gen_ai.completion` span attributes using the `transform/mask_llm_output` processor, and forwards the redacted traces to LangSmith.
 
 ## Prerequisites
 
@@ -71,17 +59,17 @@ LANGSMITH_PROJECT="<your-langsmith-project>"
 OPENAI_API_KEY="<your-openai-api-key>"
 ```
 
-The `LANGSMITH_API_KEY` variable is passed through to the OTel agent collector container via docker-compose, where it is used for the `x-api-key` header in both the gateway and LangSmith exporters.
+The `LANGSMITH_API_KEY` variable is passed through to the OTel collector container via docker-compose, where it is used for the `x-api-key` header when exporting to LangSmith.
 
 ## Running
 
-### Start the OTel collectors
+### Start the OTel collector
 
 ```sh
 docker compose up
 ```
 
-This starts both the agent and gateway collectors. The agent collector listens on ports 4317 (gRPC) and 4318 (HTTP).
+This starts the collector, which listens on ports 4317 (gRPC) and 4318 (HTTP).
 
 ### Install dependencies
 
@@ -95,4 +83,4 @@ uv sync
 uv run main.py
 ```
 
-This invokes a LangChain chain that asks for a programming joke. The resulting trace is sent via OTLP to the agent collector, which redacts the LLM output and forwards the trace onward.
+This invokes a LangChain chain that asks for a programming joke. The resulting trace is sent via OTLP to the collector, which redacts the LLM output and forwards the trace to LangSmith.

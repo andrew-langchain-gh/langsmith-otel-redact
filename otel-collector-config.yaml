@@ -8,11 +8,6 @@ receivers:
 
 processors:
   batch:
-  resource/stamping:
-    attributes:
-      - key: collector.origin
-        value: "agent-alpha"
-        action: upsert
   transform/mask_llm_output:
       error_mode: ignore
       trace_statements:
@@ -23,29 +18,22 @@ processors:
 
 exporters:
   debug:
-    verbosity: detailed 
-  otlp/gateway:
-    endpoint: "otel-gateway:4317"
-    tls:
-      insecure: true
-    headers:
-      x-api-key: "${env:LANGSMITH_API_KEY}"
-      Langsmith-Project: "langsmith-otel"
+    verbosity: detailed
   otlphttp/langsmith:
     endpoint: "https://api.smith.langchain.com/otel"
     headers:
       x-api-key: "${env:LANGSMITH_API_KEY}"
       Langsmith-Project: "langsmith-otel"
   file:
-    path: /etc/otelcol-contrib/logs/agent.log
+    path: /etc/otelcol-contrib/logs/collector.log
+
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch,resource/stamping,transform/mask_llm_output]
-      exporters: [debug,otlp/gateway,otlphttp/langsmith,file]
+      processors: [batch, transform/mask_llm_output]
+      exporters: [debug, otlphttp/langsmith, file]
   telemetry:
     logs:
       level: "info"
       encoding: "console"
-

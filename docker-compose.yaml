@@ -1,24 +1,13 @@
 version: "3.8"
 services:
-  # The first collector (Agent)
-  otel-agent:
+  otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
-    container_name: otel-agent
+    container_name: otel-collector
     environment:
       - LANGSMITH_API_KEY=${LANGSMITH_API_KEY}
     volumes:
       - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
       - ./logs:/etc/otelcol-contrib/logs
     ports:
-      - "4317:4317" 
+      - "4317:4317"
       - "4318:4318"
-    depends_on:
-      - otel-gateway
-
-  # The second collector (Gateway)
-  otel-gateway:
-    image: otel/opentelemetry-collector-contrib:latest
-    container_name: otel-gateway
-    volumes:
-      - ./otel-collector-gateway-config.yaml:/etc/otelcol-contrib/config.yaml
-      - ./logs:/etc/otelcol-contrib/logs
