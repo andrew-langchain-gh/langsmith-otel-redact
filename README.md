@@ -1,4 +1,4 @@
-# langchain-otel-redact
+# langsmith-otel-redact
 
 Demonstrates using LangChain with OpenTelemetry to send traces through a collector that redacts LLM outputs before forwarding to LangSmith.
 
